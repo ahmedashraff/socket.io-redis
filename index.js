@@ -75,7 +75,7 @@ function adapter(uri, opts) {
    * @api public
    */
 
-  function Redis(nsp){
+  function Redis(nsp) {
     Adapter.call(this, nsp);
 
     this.uid = uid;
@@ -86,7 +86,7 @@ function adapter(uri, opts) {
     this.requestChannel = prefix + '-request#' + this.nsp.name + '#';
     this.responseChannel = prefix + '-response#' + this.nsp.name + '#';
     this.requests = {};
-    this.customHook = function(data, cb){ cb(null); }
+    this.customHook = function (data, cb) { cb(null); }
 
     if (String.prototype.startsWith) {
       this.channelMatches = function (messageChannel, subscribedChannel) {
@@ -102,13 +102,13 @@ function adapter(uri, opts) {
 
     var self = this;
 
-    sub.psubscribe(this.channel + '*', function(err){
+    sub.psubscribe(this.channel + '*', function (err) {
       if (err) self.emit('error', err);
     });
 
     sub.on('pmessageBuffer', this.onmessage.bind(this));
 
-    sub.subscribe([this.requestChannel, this.responseChannel], function(err){
+    sub.subscribe([this.requestChannel, this.responseChannel], function (err) {
       if (err) self.emit('error', err);
     });
 
@@ -133,7 +133,7 @@ function adapter(uri, opts) {
    * @api private
    */
 
-  Redis.prototype.onmessage = function(pattern, channel, msg){
+  Redis.prototype.onmessage = function (pattern, channel, msg) {
     channel = channel.toString();
 
     if (!this.channelMatches(channel, this.channel)) {
@@ -171,7 +171,7 @@ function adapter(uri, opts) {
    * @api private
    */
 
-  Redis.prototype.onrequest = function(channel, msg){
+  Redis.prototype.onrequest = function (channel, msg) {
     channel = channel.toString();
 
     if (this.channelMatches(channel, this.responseChannel)) {
@@ -185,7 +185,7 @@ function adapter(uri, opts) {
 
     try {
       request = JSON.parse(msg);
-    } catch(err){
+    } catch (err) {
       self.emit('error', err);
       return;
     }
@@ -195,8 +195,8 @@ function adapter(uri, opts) {
     switch (request.type) {
 
       case requestTypes.clients:
-        Adapter.prototype.clients.call(self, request.rooms, function(err, clients){
-          if(err){
+        Adapter.prototype.clients.call(self, request.rooms, function (err, clients) {
+          if (err) {
             self.emit('error', err);
             return;
           }
@@ -211,8 +211,8 @@ function adapter(uri, opts) {
         break;
 
       case requestTypes.clientRooms:
-        Adapter.prototype.clientRooms.call(self, request.sid, function(err, rooms){
-          if(err){
+        Adapter.prototype.clientRooms.call(self, request.sid, function (err, rooms) {
+          if (err) {
             self.emit('error', err);
             return;
           }
@@ -243,7 +243,7 @@ function adapter(uri, opts) {
         var socket = this.nsp.connected[request.sid];
         if (!socket) { return; }
 
-        socket.join(request.room, function(){
+        socket.join(request.room, function () {
           var response = JSON.stringify({
             requestid: request.requestid
           });
@@ -257,7 +257,7 @@ function adapter(uri, opts) {
         var socket = this.nsp.connected[request.sid];
         if (!socket) { return; }
 
-        socket.leave(request.room, function(){
+        socket.leave(request.room, function () {
           var response = JSON.stringify({
             requestid: request.requestid
           });
@@ -281,7 +281,7 @@ function adapter(uri, opts) {
         break;
 
       case requestTypes.customRequest:
-        this.customHook(request.data, function(data) {
+        this.customHook(request.data, function (data) {
 
           var response = JSON.stringify({
             requestid: request.requestid,
@@ -304,13 +304,13 @@ function adapter(uri, opts) {
    * @api private
    */
 
-  Redis.prototype.onresponse = function(channel, msg){
+  Redis.prototype.onresponse = function (channel, msg) {
     var self = this;
     var response;
 
     try {
       response = JSON.parse(msg);
-    } catch(err){
+    } catch (err) {
       self.emit('error', err);
       return;
     }
@@ -332,12 +332,17 @@ function adapter(uri, opts) {
         request.msgCount++;
 
         // ignore if response does not contain 'clients' key
-        if(!response.clients || !Array.isArray(response.clients)) return;
+        if (!response.clients || !Array.isArray(response.clients)) return;
 
-        for(var i = 0; i < response.clients.length; i++){
+        for (var i = 0; i < response.clients.length; i++) {
           request.clients[response.clients[i]] = true;
         }
 
+        if (request.canSkip && request.clients.length > 0) {
+          if (request.callback) process.nextTick(request.callback.bind(null, null, Object.keys(request.clients)));
+          delete self.requests[requestid];
+          break;
+        }
         if (request.msgCount === request.numsub) {
           clearTimeout(request.timeout);
           if (request.callback) process.nextTick(request.callback.bind(null, null, Object.keys(request.clients)));
@@ -355,9 +360,9 @@ function adapter(uri, opts) {
         request.msgCount++;
 
         // ignore if response does not contain 'rooms' key
-        if(!response.rooms || !Array.isArray(response.rooms)) return;
+        if (!response.rooms || !Array.isArray(response.rooms)) return;
 
-        for(var i = 0; i < response.rooms.length; i++){
+        for (var i = 0; i < response.rooms.length; i++) {
           request.rooms[response.rooms[i]] = true;
         }
 
@@ -402,7 +407,7 @@ function adapter(uri, opts) {
    * @api public
    */
 
-  Redis.prototype.broadcast = function(packet, opts, remote){
+  Redis.prototype.broadcast = function (packet, opts, remote) {
     packet.nsp = this.nsp.name;
     if (!(remote || (opts && opts.flags && opts.flags.local))) {
       var msg = msgpack.encode([uid, packet, opts]);
@@ -424,8 +429,8 @@ function adapter(uri, opts) {
    * @api public
    */
 
-  Redis.prototype.clients = function(rooms, fn){
-    if ('function' == typeof rooms){
+  Redis.prototype.clients = function (rooms, fn) {
+    if ('function' == typeof rooms) {
       fn = rooms;
       rooms = null;
     }
@@ -435,7 +440,7 @@ function adapter(uri, opts) {
     var self = this;
     var requestid = uid2(6);
 
-    pub.send_command('pubsub', ['numsub', self.requestChannel], function(err, numsub){
+    pub.send_command('pubsub', ['numsub', self.requestChannel], function (err, numsub) {
       if (err) {
         self.emit('error', err);
         if (fn) fn(err);
@@ -446,13 +451,13 @@ function adapter(uri, opts) {
       debug('waiting for %d responses to "clients" request', numsub);
 
       var request = JSON.stringify({
-        requestid : requestid,
+        requestid: requestid,
         type: requestTypes.clients,
-        rooms : rooms
+        rooms: rooms
       });
 
       // if there is no response for x second, return result
-      var timeout = setTimeout(function() {
+      var timeout = setTimeout(function () {
         var request = self.requests[requestid];
         if (fn) process.nextTick(fn.bind(null, new Error('timeout reached while waiting for clients response'), Object.keys(request.clients)));
         delete self.requests[requestid];
@@ -471,6 +476,54 @@ function adapter(uri, opts) {
     });
   };
 
+
+  Redis.prototype.clientsSakr = function (rooms, fn) {
+    if ('function' == typeof rooms) {
+      fn = rooms;
+      rooms = null;
+    }
+
+    rooms = rooms || [];
+
+    var self = this;
+    var requestid = uid2(6);
+
+    pub.send_command('pubsub', ['numsub', self.requestChannel], function (err, numsub) {
+      if (err) {
+        self.emit('error', err);
+        if (fn) fn(err);
+        return;
+      }
+
+      numsub = parseInt(numsub[1], 10);
+      debug('waiting for %d responses to "clients" request', numsub);
+
+      var request = JSON.stringify({
+        requestid: requestid,
+        type: requestTypes.clients,
+        rooms: rooms
+      });
+
+      // if there is no response for x second, return result
+      // var timeout = setTimeout(function () {
+      //   var request = self.requests[requestid];
+      //   if (fn) process.nextTick(fn.bind(null, new Error('timeout reached while waiting for clients response'), Object.keys(request.clients)));
+      //   delete self.requests[requestid];
+      // }, self.requestsTimeout);
+
+      self.requests[requestid] = {
+        type: requestTypes.clients,
+        numsub: numsub,
+        msgCount: 0,
+        clients: {},
+        callback: fn,
+        canSkip: true
+      };
+
+      pub.publish(self.requestChannel, request);
+    });
+  };
+
   /**
    * Gets the list of rooms a given client has joined.
    *
@@ -479,7 +532,7 @@ function adapter(uri, opts) {
    * @api public
    */
 
-  Redis.prototype.clientRooms = function(id, fn){
+  Redis.prototype.clientRooms = function (id, fn) {
 
     var self = this;
     var requestid = uid2(6);
@@ -492,13 +545,13 @@ function adapter(uri, opts) {
     }
 
     var request = JSON.stringify({
-      requestid : requestid,
+      requestid: requestid,
       type: requestTypes.clientRooms,
-      sid : id
+      sid: id
     });
 
     // if there is no response for x second, return result
-    var timeout = setTimeout(function() {
+    var timeout = setTimeout(function () {
       if (fn) process.nextTick(fn.bind(null, new Error('timeout reached while waiting for rooms response')));
       delete self.requests[requestid];
     }, self.requestsTimeout);
@@ -519,12 +572,12 @@ function adapter(uri, opts) {
    * @api public
    */
 
-  Redis.prototype.allRooms = function(fn){
+  Redis.prototype.allRooms = function (fn) {
 
     var self = this;
     var requestid = uid2(6);
 
-    pub.send_command('pubsub', ['numsub', self.requestChannel], function(err, numsub){
+    pub.send_command('pubsub', ['numsub', self.requestChannel], function (err, numsub) {
       if (err) {
         self.emit('error', err);
         if (fn) fn(err);
@@ -535,12 +588,12 @@ function adapter(uri, opts) {
       debug('waiting for %d responses to "allRooms" request', numsub);
 
       var request = JSON.stringify({
-        requestid : requestid,
+        requestid: requestid,
         type: requestTypes.allRooms
       });
 
       // if there is no response for x second, return result
-      var timeout = setTimeout(function() {
+      var timeout = setTimeout(function () {
         var request = self.requests[requestid];
         if (fn) process.nextTick(fn.bind(null, new Error('timeout reached while waiting for allRooms response'), Object.keys(request.rooms)));
         delete self.requests[requestid];
@@ -568,7 +621,7 @@ function adapter(uri, opts) {
    * @api public
    */
 
-  Redis.prototype.remoteJoin = function(id, room, fn){
+  Redis.prototype.remoteJoin = function (id, room, fn) {
 
     var self = this;
     var requestid = uid2(6);
@@ -580,14 +633,14 @@ function adapter(uri, opts) {
     }
 
     var request = JSON.stringify({
-      requestid : requestid,
+      requestid: requestid,
       type: requestTypes.remoteJoin,
       sid: id,
       room: room
     });
 
     // if there is no response for x second, return result
-    var timeout = setTimeout(function() {
+    var timeout = setTimeout(function () {
       if (fn) process.nextTick(fn.bind(null, new Error('timeout reached while waiting for remoteJoin response')));
       delete self.requests[requestid];
     }, self.requestsTimeout);
@@ -610,7 +663,7 @@ function adapter(uri, opts) {
    * @api public
    */
 
-  Redis.prototype.remoteLeave = function(id, room, fn){
+  Redis.prototype.remoteLeave = function (id, room, fn) {
 
     var self = this;
     var requestid = uid2(6);
@@ -622,14 +675,14 @@ function adapter(uri, opts) {
     }
 
     var request = JSON.stringify({
-      requestid : requestid,
+      requestid: requestid,
       type: requestTypes.remoteLeave,
       sid: id,
       room: room
     });
 
     // if there is no response for x second, return result
-    var timeout = setTimeout(function() {
+    var timeout = setTimeout(function () {
       if (fn) process.nextTick(fn.bind(null, new Error('timeout reached while waiting for remoteLeave response')));
       delete self.requests[requestid];
     }, self.requestsTimeout);
@@ -650,26 +703,26 @@ function adapter(uri, opts) {
    * @param {Function} callback
    */
 
-  Redis.prototype.remoteDisconnect = function(id, close, fn) {
+  Redis.prototype.remoteDisconnect = function (id, close, fn) {
     var self = this;
     var requestid = uid2(6);
 
     var socket = this.nsp.connected[id];
-    if(socket) {
+    if (socket) {
       socket.disconnect(close);
       if (fn) process.nextTick(fn.bind(null, null));
       return;
     }
 
     var request = JSON.stringify({
-      requestid : requestid,
+      requestid: requestid,
       type: requestTypes.remoteDisconnect,
       sid: id,
       close: close
     });
 
     // if there is no response for x second, return result
-    var timeout = setTimeout(function() {
+    var timeout = setTimeout(function () {
       if (fn) process.nextTick(fn.bind(null, new Error('timeout reached while waiting for remoteDisconnect response')));
       delete self.requests[requestid];
     }, self.requestsTimeout);
@@ -691,8 +744,8 @@ function adapter(uri, opts) {
    * @api public
    */
 
-  Redis.prototype.customRequest = function(data, fn){
-    if (typeof data === 'function'){
+  Redis.prototype.customRequest = function (data, fn) {
+    if (typeof data === 'function') {
       fn = data;
       data = null;
     }
@@ -700,7 +753,7 @@ function adapter(uri, opts) {
     var self = this;
     var requestid = uid2(6);
 
-    pub.send_command('pubsub', ['numsub', self.requestChannel], function(err, numsub){
+    pub.send_command('pubsub', ['numsub', self.requestChannel], function (err, numsub) {
       if (err) {
         self.emit('error', err);
         if (fn) fn(err);
@@ -711,13 +764,13 @@ function adapter(uri, opts) {
       debug('waiting for %d responses to "customRequest" request', numsub);
 
       var request = JSON.stringify({
-        requestid : requestid,
+        requestid: requestid,
         type: requestTypes.customRequest,
         data: data
       });
 
       // if there is no response for x second, return result
-      var timeout = setTimeout(function() {
+      var timeout = setTimeout(function () {
         var request = self.requests[requestid];
         if (fn) process.nextTick(fn.bind(null, new Error('timeout reached while waiting for customRequest response'), request.replies));
         delete self.requests[requestid];
